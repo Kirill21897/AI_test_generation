@@ -153,6 +153,29 @@ def _normalize_distractor_explanations(raw_value) -> list[str] | None:
     return None
 
 
+def _reorder_questions_by_scope(questions: list[dict]) -> list[dict]:
+    """
+    Пересортировывает вопросы: сначала общие (Remember/Understand), потом узкоспециализированные (Apply/Analyze)
+    """
+    general_levels = {"Remember", "Understand"}
+    specialty_levels = {"Apply", "Analyze"}
+
+    general_questions = []
+    specialty_questions = []
+    other_questions = []
+
+    for q in questions:
+        bl = str(q.get("bloom_level", "Remember")).strip().capitalize()
+        if bl in general_levels:
+            general_questions.append(q)
+        elif bl in specialty_levels:
+            specialty_questions.append(q)
+        else:
+            other_questions.append(q)
+
+    return general_questions + specialty_questions + other_questions
+
+
 def _normalize_generated_test_payload(payload: dict, input_data: GenerationInput) -> dict:
     questions = payload.get("questions") or []
     normalized_questions = []
@@ -195,6 +218,9 @@ def _normalize_generated_test_payload(payload: dict, input_data: GenerationInput
                 "metadata": question_metadata,
             }
         )
+
+    # Пересортируем вопросы по структуре: общие → узкоспециализированные
+    normalized_questions = _reorder_questions_by_scope(normalized_questions)
 
     standards = payload.get("standards_covered")
     if not isinstance(standards, list):
