@@ -74,17 +74,17 @@
 
 ```mermaid
 flowchart TD
-    A[CLI: main.py] --> B[GenerationInput]
+    A[CLI - main.py] --> B[GenerationInput]
     B --> C[TestGenerator]
     C --> D[Prompt Builder]
-    D --> E[LLM Main Generation (Parallel Batches)]
+    D --> E[LLM Main Generation - Parallel Batches]
     E --> F[JSON Extraction]
     F --> G[Payload Normalization]
     G --> H[Pydantic Validation]
-    H --> I{Skip Judge?}
+    H --> I{Skip Judge}
     I -->|yes| J[GeneratedTest]
     I -->|no| K[Judge LLM]
-    K --> L{passed?}
+    K --> L{passed}
     L -->|yes| J
     L -->|no| M[Refinement Context]
     M --> D
