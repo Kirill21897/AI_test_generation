@@ -9,10 +9,11 @@ class GenerationInput(BaseModel):
     topic: str
     specialty: str
     level: Literal['Junior', 'Middle', 'Senior', "Expert"]
-    num_questions: int = Field(5, ge=3, le=15)
+    num_questions: int = Field(5, ge=3, le=50)
 
     subdomain: Optional[str] = None
     additional_context: Optional[str] = None
+    additional_topics: Optional[List[str]] = None
 
 class Question(BaseModel):
     """Один вопрос в тесте"""

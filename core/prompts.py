@@ -3,65 +3,67 @@
 """
 
 SYSTEM_PROMPT="""
-Ты — senior petroleum engineer с более чем 15-летним опытом работы в нефтегазовой отрасли.
-Ты специализируешься на оценке hard skills инженеров (бурение, добыча, процессинг, HSE и т.д.).
-Ты создаёшь высококачественные, реалистичные и технически точные тесты.
-
-Ключевые правила:
-- Всегда учитывай приоритет промышленной безопасности (HSE)
-- Используй актуальные отраслевые стандарты (API, ISO, ГОСТ, IWCF и др.)
-- Вопросы должны быть реалистичными и соответствовать уровню специалиста
-- Distractors (неверные варианты) должны быть правдоподобными и отражать типичные ошибки инженеров
-- Объяснения должны быть подробными и обучающими
-- **Структура теста**: сначала общие предметные вопросы (Remember/Understand), потом узкоспециализированные (Apply/Analyze)
-
-Отвечай **строго только валидным JSON** по схеме GeneratedTest. Не добавляй никакого другого текста.
+Ты — senior petroleum engineer в нефтегазовой отрасли, создаёшь технические тесты.
+Отвечай **ТОЛЬКО валидным JSON**, без дополнительного текста.
 """
 
 USER_PROMPT_TEMPLATE="""
-Сгенерируй тест по следующим параметрам:
+Сгенерируй технический тест СТРОГО на {num_questions} вопросов.
 
 Тема: {topic}
 Специальность: {specialty}
 Уровень: {level}
-Количество вопросов: {num_questions}
 
-{subdomain_section}
-{additional_context_section}
+КРИТИЧЕСКИЕ ПРАВИЛА - СЛЕДУЙ ТОЧНО:
+1. Ответь ТОЛЬКО валидным JSON-объектом, без другого текста
+2. Каждый вопрос должен иметь:
+   - "id": число (1, 2, 3...)
+   - "type": один из ["MCQ", "Scenario", "Calculation", "Procedure"]
+   - "difficulty": один из ["Easy", "Medium", "Hard"]
+   - "bloom_level": один из ["Remember", "Understand", "Apply", "Analyze"]
+   - "question_text": текст вопроса
+   - "options": массив строк (для MCQ) или null
+   - "correct_answer": правильный ответ
+   - "explanation": подробное объяснение
+3. Все вопросы и ответы - на РУССКОМ языке
+4. Обязательно учитывай HSE и отраслевые стандарты
+{additional_topics_section}
 
-RAG контекст (используй для обеспечения технической точности):
-{context}
-
-Требования:
-- Разнообразие типов вопросов (MCQ, Scenario, Calculation, Procedure)
-- Разнообразие Bloom levels (Remember, Understand, Apply, Analyze)
-- Особое внимание на HSE и соответствие стандартам
-- Реалистичные сценарии из нефтегазовой отрасли
-- **Структура теста (обязательно соблюдай)**:
-  1. Сначала общие предметные вопросы (Remember/Understand)
-  2. Потом узкоспециализированные вопросы (Apply/Analyze) под конкретную специальность {specialty}
+Верни JSON в ТОЧНО этом формате:
+{{
+  "title": "Название теста",
+  "topic": "{topic}",
+  "specialty": "{specialty}",
+  "level": "{level}",
+  "duration_minutes": 30,
+  "questions": [
+    {{
+      "id": 1,
+      "type": "MCQ",
+      "difficulty": "Medium",
+      "bloom_level": "Apply",
+      "question_text": "Текст вопроса здесь?",
+      "options": ["Вариант A", "Вариант B", "Вариант C", "Вариант D"],
+      "correct_answer": "Вариант B",
+      "explanation": "Почему это правильно..."
+    }}
+  ],
+  "standards_covered": ["API 53", "IWCF"]
+}}
 """
 
 JUDGE_PROMPT_TEMPLATE="""
-Ты — эксперт по оценке качества технических тестов в нефтегазовой отрасли.
-
-Оцени следующий тест по шкале от 1 до 10 по каждому критерию:
-
-1. Техническая точность и соответствие стандартам
-2. Приоритет HSE и безопасность
-3. Качество вопросов и реалистичность сценариев
-4. Качество distractors (правдоподобность)
-5. Обучающая ценность объяснений
-6. Соответствие уровню специалиста
-7. Общее разнообразие вопросов
+Оцени качество этого технического теста. Ответь ТОЛЬКО валидным JSON.
 
 Тест:
 {test_json}
 
-Верни оценку в формате JSON с полями:
-- overall_score (от 1 до 10)
-- critique (что нужно улучшить)
-- passed (true/false, если overall_score >= 8)
+Верни JSON в ТОЧНО этом формате:
+{{
+  "overall_score": 8.5,
+  "critique": "Что можно улучшить...",
+  "passed": true
+}}
 """
 
 # Вспомогательные функции для форматирования промптов
@@ -71,12 +73,16 @@ def format_user_prompt(input_data, context: str = "Нет дополнитель
     subdomain_section = f"Поддомен: {input_data.subdomain}" if input_data.subdomain else ""
     additional_context_section = f"Дополнительный контекст: {input_data.additional_context}" if input_data.additional_context else ""
     
+    if input_data.additional_topics:
+        topics_list = ", ".join(input_data.additional_topics)
+        additional_topics_section = f"\n5. В тесте ОБЯЗАТЕЛЬНО должны присутствовать вопросы по темам: {topics_list}. Однако тест не должен ограничиваться только этими темами, включай и другие вопросы по основной теме."
+    else:
+        additional_topics_section = ""
+    
     return USER_PROMPT_TEMPLATE.format(
         topic=input_data.topic,
         specialty=input_data.specialty,
         level=input_data.level,
         num_questions=input_data.num_questions,
-        subdomain_section=subdomain_section,
-        additional_context_section=additional_context_section,
-        context=context
+        additional_topics_section=additional_topics_section
     )

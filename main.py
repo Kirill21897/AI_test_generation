@@ -24,21 +24,32 @@ def main() -> None:
 
 @app.command()
 def generate(
-    topic: str = typer.Option(..., "--topic", "-t", help="Тема теста, например: 'Контроль скважины'"),
-    specialty: str = typer.Option(..., "--specialty", "-s", help="Специальность, например: 'Инженер по бурению'"),
+    topic: str = typer.Option(..., "--topic", "-t", help="Тема теста, например: \"Контроль скважины\""),
+    specialty: str = typer.Option(..., "--specialty", "-s", help="Специальность, например: \"Инженер по бурению\""),
     level: str = typer.Option("Senior", "--level", "-l", help="Уровень: Junior, Middle, Senior, Expert"),
-    num_questions: int = typer.Option(5, "--num", "-n", help="Количество вопросов", min=3, max=15),
+    num_questions: int = typer.Option(5, "--num", "-n", help="Количество вопросов", min=3, max=50),
+    additional_topics: list[str] = typer.Option(None, "--additional-topic", "-at", help="Дополнительные темы, которые должны присутствовать в тесте (можно указать несколько раз)"),
+    batch_size: int = typer.Option(5, "--batch-size", "-b", help="Количество вопросов в одном батче", min=1),
+    max_workers: int = typer.Option(4, "--max-workers", "-w", help="Количество параллельных потоков", min=1),
+    skip_judge: bool = typer.Option(False, "--skip-judge", help="Пропустить оценку качества теста (ускоряет инференс)"),
     output: str = typer.Option(None, "--output", "-o", help="Сохранить результат в JSON-файл"),
 ):
     """
-    Генерирует тест по заданным параметрам.
+    Генерирует тест по заданным параметрам с батчевым инференсом.
     """
+    import time
+    start_time = time.time()
+    
     try:
+        topics_display = f"\nДополнительные темы: [cyan]{', '.join(additional_topics)}[/cyan]" if additional_topics else ""
         console.print(Panel.fit(
             f"[bold blue]Генерация теста[/bold blue]\n"
             f"Тема: [cyan]{topic}[/cyan]\n"
             f"Специальность: [cyan]{specialty}[/cyan]\n"
-            f"Уровень: [cyan]{level}[/cyan] | Вопросов: [cyan]{num_questions}[/cyan]",
+            f"Уровень: [cyan]{level}[/cyan] | Вопросов: [cyan]{num_questions}[/cyan]\n"
+            f"Батч: [cyan]{batch_size}[/cyan] | Потоки: [cyan]{max_workers}[/cyan]\n"
+            f"Judge: [cyan]{'Пропущен' if skip_judge else 'Включен'}[/cyan]"
+            f"{topics_display}",
             title="LLM-core"
         ))
 
@@ -48,16 +59,21 @@ def generate(
             specialty=specialty,
             level=level,
             num_questions=num_questions,
+            additional_topics=additional_topics,
         )
 
         # Генерация теста
-        generator = TestGenerator()
-        test = generator.generate(input_data)
+        generator = TestGenerator(batch_size=batch_size, max_workers=max_workers)
+        generation_start = time.time()
+        test = generator.generate(input_data, skip_judge=skip_judge)
+        generation_time = time.time() - generation_start
 
         # Вывод результата
+        total_time = time.time() - start_time
         rprint(f"\n[bold green]✅ Тест успешно сгенерирован![/bold green] (ID: {test.test_id})")
         rprint(f"Название: [bold]{test.title}[/bold]")
-        rprint(f"Вопросов: {len(test.questions)} | Judge Score: {test.metadata.get('judge_score', 'N/A')}\n")
+        rprint(f"Вопросов: {len(test.questions)} | Judge Score: {test.metadata.get('judge_score', 'N/A')}")
+        rprint(f"[dim]⏱️  Время генерации: {generation_time:.1f} сек | Общее время: {total_time:.1f} сек[/dim]\n")
 
         # Показываем первые 2 вопроса в консоли
         for i, q in enumerate(test.questions[:2], 1):
